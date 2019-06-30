@@ -70,6 +70,8 @@ impl MqttClient {
     pub fn publish(&mut self, topic: &str, qos: QualityOfService, payload: Vec<u8>) -> Result<()> {
         let payload = Arc::new(payload);
         let mut ret_val;
+        let mut retry_counts = 0;
+        let max_retries = 10;
         loop {
             let payload = payload.clone();
             ret_val = self._publish(topic, false, qos, payload, None);
@@ -78,8 +80,13 @@ impl MqttClient {
                     // break immediately if rx is dropped
                     &TrySendError::Disconnected(_) => break,
                     &TrySendError::Full(_) => {
+                        if retry_counts >= max_retries {
+                            warn!("Request Queue Full - max retries exceeded!!!!!!!!");
+                            break;
+                        }
                         warn!("Request Queue Full !!!!!!!!");
                         thread::sleep(Duration::new(2, 0));
+                        retry_counts = retry_counts + 1;
                         continue;
                     }
                 }
